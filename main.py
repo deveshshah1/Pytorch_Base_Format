@@ -6,13 +6,13 @@ This file represents the basic training function to use for a pytorch model.
 In particular, this file loads in a pre-defined network and performs hyper-parameter tuning over the network to
 find the best model.
 
+This file is currently set up to load and train for CIFAR10. It can easily be configured for other datasets
+by changing the dataloaders
+
 The RunManager format seen here is adapted from https://deeplizard.com/
 This format allows us to easily track hyper-parameters as the models are trained
 """
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 import torchvision
 import torchvision.transforms as transforms
@@ -23,9 +23,6 @@ from tqdm import tqdm
 from helperFxns import *
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-# TODO: Need to add capabilities for multi-processsing
-# use_multiple_gpus = True if (torch.cuda.device_count() > 1) else False
 
 
 def main():
