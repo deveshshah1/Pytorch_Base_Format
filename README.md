@@ -17,6 +17,8 @@ The following files are included in this project:
 This repo is still in development. We hope to include the following functions moving forward:
 - Multiprocessing with >1 GPU
 - Transfer Learning
+- Tensorboard Profiler for memory/time management
+- Confusion Matrix
 
 ## Refernces
 [1] https://deeplizard.com/ 
