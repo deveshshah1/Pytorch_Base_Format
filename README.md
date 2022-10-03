@@ -7,6 +7,12 @@ The main branch of this repo includes a training for a simple CNN model. Each ad
 - Variational AutoEncoder (VAE)
 - Generative Adversarial Network (GAN)
 
+## Repository Breakdown
+The following files are included in this project:
+1. main.py: This serves as the main controller for the network training. It includes loading the dataset, setting the hyper-parameters, and organizing the training loop over the network
+2. networks.py: This file includes the detailed architecture of each network we hope to train
+3. helperFxns.py: This file includes several classes that help us organize our program. The NetworkFactory and OptimizerFactory provide access to various network architectures and optimizers. The RunBuilder and RunManager allow us to track the progress of our training in both a dataframe and tensorboard. It organizes the steps that happen before/after each epoch/run to compare hyper-paramter tuning results.
+
 ## TODO
 This repo is still in development. We hope to include the following functions moving forward:
 - Multiprocessing with >1 GPU
