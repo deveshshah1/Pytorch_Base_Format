@@ -128,5 +128,11 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# Macbook
+.DS_Store
+
 # Pycharm settings
 .idea/
+
+# Machine Learning limitations - Don't Save Data Folder
+data/

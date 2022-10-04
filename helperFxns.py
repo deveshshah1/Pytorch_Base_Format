@@ -8,6 +8,7 @@ the epoch/run start/end commands. The Run Manager is our primary source of coord
 of hyper-parameters and training results.
 """
 
+
 import torch
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
@@ -15,9 +16,11 @@ from collections import OrderedDict, namedtuple
 from itertools import product
 import time
 import pandas as pd
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
 from networks import *
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class NetworkFactory():
@@ -35,6 +38,8 @@ class NetworkFactory():
             return Network2(conv_dropout=0.2, fc_dropout=0.5)
         elif name == "Network2withBN":
             return Network2withBN(conv_dropout=0.2, fc_dropout=0.5)
+        else:
+            raise Exception("Invalid Network Name")
 
 
 class OptimizerFactory():
@@ -78,7 +83,9 @@ class RunManager():
     after each trial, keeping track of all parameters. All the final results are saved to a dataframe
     for further study after the training is complete
     """
-    def __init__(self):
+    def __init__(self, device):
+        self.device = device
+
         self.epoch_count = 0
         self.epoch_loss = 0
         self.epoch_val_loss = 0
@@ -87,6 +94,7 @@ class RunManager():
         self.epoch_start_time = None
 
         self.run_params = None
+        self.hyper_parameters = None
         self.run_count = 0
         self.run_data = []
         self.run_start_time = None
@@ -94,11 +102,15 @@ class RunManager():
         self.network = None
         self.loader = None
         self.val_loader = None
+        self.confusion_matrix = None
+        self.class_labels = None
         self.tb = None
 
-    def begin_run(self, run, network, loader, val_loader):
+    def begin_run(self, run, network, loader, val_loader, hyparams, class_labels):
         self.run_start_time = time.time()
         self.run_params = run
+        self.hyper_parameters = hyparams
+        self.class_labels = class_labels
         self.run_count += 1
         self.network = network
         self.loader = loader
@@ -107,8 +119,20 @@ class RunManager():
 
         images, labels = next(iter(self.loader))
         grid = torchvision.utils.make_grid(images)
+        self.tb.add_image('Initial_Images', grid)
+        self.tb.add_graph(self.network, images)
 
     def end_run(self):
+        # Add hyper-parameters for study
+        hyper_param_dict = OrderedDict()
+        for idx, hyper_param in enumerate(self.run_params):
+            hyper_param_dict[self.hyper_parameters[idx]] = hyper_param
+        self.tb.add_hparams(dict(hyper_param_dict),
+                            {'train_loss': self.epoch_loss / len(self.loader.dataset),
+                             'val_loss': self.epoch_val_loss / len(self.val_loader.dataset),
+                             'train_acc': self.epoch_num_correct / len(self.loader.dataset),
+                             'val_acc': self.epoch_val_num_correct / len(self.val_loader.dataset)})
+
         self.tb.close()
         self.epoch_count = 0
         # save run here if want to save
@@ -138,9 +162,21 @@ class RunManager():
         # Add histogram to Tensorboard consumes large amount of system memory (RAM) over many runs
         # and accumulates. Avoid using this when possible. However, this can be useful to make sure
         # training of weights is progressing properly.
-        for name, param in self.network.named_parameters():
-            self.tb.add_histogram(name, param, self.epoch_count)
-            self.tb.add_histogram(f'{name}.grad', param.grad, self.epoch_count)
+        # for name, param in self.network.named_parameters():
+        #     self.tb.add_histogram(name, param, self.epoch_count)
+        #     self.tb.add_histogram(f'{name}.grad', param.grad, self.epoch_count)
+
+        # For every 5 epochs, print a confusion matrix
+        if self.epoch_count % 5 == 0:
+            self._get_confusion_mat()
+            figure = plt.figure(figsize=(8, 8))
+            sns.heatmap(self.confusion_matrix / np.sum(self.confusion_matrix), annot=True, fmt='.1%', cmap='Blues',
+                        cbar=True, xticklabels=self.class_labels, yticklabels=self.class_labels)
+            plt.ylabel('True Label')
+            plt.xlabel('Predicted Label' + f'\n\nValidation Accuracy={val_accuracy}')
+            plt.title('Confusion Matrix Validation Dataset')
+            plt.tight_layout()
+            self.tb.add_figure("Confusion Matrix", figure, self.epoch_count)
 
         results = OrderedDict()
         results['run'] = self.run_count
@@ -156,6 +192,12 @@ class RunManager():
             results[k] = v
 
         self.run_data.append(results)
+
+        # Uncomment if would like to display df with all epoch results after each epoch
+        # Best used when working with a jupyter notebook
+        # df = pd.DataFrame.from_dict(self.run_data, orient='columns')
+        # clear_output(wait=True)
+        # display(df)
 
     def track_loss(self, loss, data_type):
         if data_type == 'train':
@@ -176,6 +218,20 @@ class RunManager():
     @torch.no_grad()
     def _get_num_correct(self, preds, labels):
         return preds.argmax(dim=1).eq(labels).sum().item()
+
+    @torch.no_grad()
+    def _get_confusion_mat(self):
+        self.network.eval()
+        all_preds = torch.Tensor()
+        all_labels = torch.Tensor()
+        for batch in self.val_loader:
+            images = batch[0].to(self.device)
+            labels = batch[1].to(self.device)
+            all_labels = torch.cat([all_labels, labels], dim=0)
+            preds = self.network(images)
+            preds = preds.argmax(dim=1)
+            all_preds = torch.cat([all_preds, preds], dim=0)
+        self.confusion_matrix = confusion_matrix(all_labels, all_preds)
 
     def save(self, filename):
         pd.DataFrame.from_dict(self.run_data, orient='columns').to_csv(f'{filename}.csv')

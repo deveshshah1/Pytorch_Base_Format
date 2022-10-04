@@ -59,20 +59,15 @@ class Network2(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=(1, 1))
         self.conv2 = nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, padding=(1, 1))
-        self.conv2_bn = nn.BatchNorm2d(32)
 
         self.conv3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=(1, 1))
         self.conv4 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=(1, 1))
-        self.conv4_bn = nn.BatchNorm2d(64)
 
         self.conv5 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=(1, 1))
         self.conv6 = nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=(1, 1))
-        self.conv6_bn = nn.BatchNorm2d(128)
 
         self.fc1 = nn.Linear(in_features=(128 * 4 * 4), out_features=256)
-        self.fc1_bn = nn.BatchNorm1d(256)
         self.fc2 = nn.Linear(in_features=256, out_features=64)
-        self.fc2_bn = nn.BatchNorm1d(64)
         self.out = nn.Linear(in_features=64, out_features=10)
 
         self.conv_dropout = nn.Dropout(conv_dropout)
