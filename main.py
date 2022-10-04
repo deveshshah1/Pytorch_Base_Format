@@ -17,7 +17,7 @@ This format allows us to easily track hyper-parameters as the models are trained
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
 from tqdm import tqdm
-from helperFxns import *
+from runManager import *
 
 
 def main():
