@@ -17,7 +17,7 @@ This format allows us to easily track hyper-parameters as the models are trained
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
 from tqdm import tqdm
-from runManager import *
+from methods_and_networks.runManager import *
 
 
 def main():
@@ -43,12 +43,12 @@ def main():
         train_set_options=['normalized'],
         num_workers=[2],
         shuffle=[True],
-        network=['Network1'],
-        optimizer=['Adam'],
-        l2_reg=[0],
-        lr=[0.001],
-        batch_size=[64],
-        epochs=[1]
+        network=['Network1', 'Network2', 'Network2_DO', 'Network2withBN'],
+        optimizer=['Adam', 'SGD'],
+        l2_reg=[0, 0.001],
+        lr=[0.001, 0.0001],
+        batch_size=[64, 256],
+        epochs=[50]
     )
 
     m = RunManager(device)
