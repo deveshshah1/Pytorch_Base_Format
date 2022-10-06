@@ -9,6 +9,10 @@ can be taken from here and modified in order to use for training/eval.
 In particular, we highlight the following methods:
 - Data-loader Transforms with augmentation for training
 - Feature Extractors using Pytorch Hooks
+- Differential Learning
+
+To Add:
+- Custom Data Loaders / Classes
 """
 
 
@@ -86,3 +90,33 @@ def feature_extractor():
     all_features = all_features.cpu().detach().numpy()
 
     return all_features, all_labels
+
+
+def differential_learning():
+    """
+    Differntiale learning is the means to apply different learning rates to different layers of the network during
+    trianing. In particular, this is useful when working with transfer learning models and using pretrained weights.
+    Diff Learning allows us to use smaller learning rates near the start of the network and larger rates near the
+    later layers, thus performing more fine tuning on later layers for detailed anaylsis.
+
+    Additionally, we can apply a similar method to freeze learning of a few layers (usually the first few) and only
+    update the later layers.
+
+    Further Notes: https://stackoverflow.com/questions/51801648/how-to-apply-layer-wise-learning-rate-in-pytorch
+    :return: optimizer with differentiable learning rate applied
+    """
+    model = torchvision.models.inception_v3(pretrained=True)
+
+    # print model to see different layers and choose param/lr combination based on that
+    params_to_update = []
+    params_to_update.append({"params": model.layer1.parameters(), "lr": 0.00001})
+    params_to_update.append({"params": model.layer2.parameters(), "lr": 0.0001})
+    params_to_update.append({"params": model.layer3.parameters(), "lr": 0.001})
+    params_to_update.append({"params": model.layer4.parameters(), "lr": 0.001})
+    params_to_update.append({"params": model.fc.parameters()})
+    # Only parameters included in optim will update. For any params in params_to_update without a lr, will use global
+    # lr that is included in optimizer initialization
+    # If you have
+    optimizer = torch.optim.SGD(params_to_update, lr=0.001, momentum=0.9)
+
+    return optimizer
