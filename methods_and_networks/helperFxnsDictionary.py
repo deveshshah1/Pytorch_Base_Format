@@ -2,6 +2,9 @@
 Author: Devesh Shah
 Project Title: Pytorch Base Format
 
+The main purpose of this file is to serve as a dictionary of methods that can be taken and adapted for particular
+use cases as desired.
+
 This file includes several helper functions that can be useful for various different methods. This file, though
 not directly used by main.py during training, is a compilation of methods and their implementations. They
 can be taken from here and modified in order to use for training/eval.
@@ -13,6 +16,7 @@ In particular, we highlight the following methods:
 
 To Add:
 - Custom Data Loaders / Classes
+- Save graph of val accuracy of all runs on one graph at end
 """
 
 
@@ -20,6 +24,7 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 from PIL import Image
+import matplotlib.pyplot as plt
 
 
 def get_transform_with_aug():
@@ -120,3 +125,40 @@ def differential_learning():
     optimizer = torch.optim.SGD(params_to_update, lr=0.001, momentum=0.9)
 
     return optimizer
+
+
+def visualize_sample_predictions(dataloader_val, device, class_names):
+    """
+    This method is used to visualize several predictions using a trained model. The predictions are moade on
+    images from the validation set and then output to the user showing the image, prediction, and true label.
+
+    This can be modified to save these predictions every so many epochs to understand failed states
+    :return: visualization of predictions of trained model on images
+    """
+    model = torchvision.models.inception_v3(pretrained=True)
+    was_training = model.training
+    model.eval()
+    num_images = 6
+    images_so_far = 0
+    fig = plt.figure()
+
+    with torch.no_grad():
+        for i, (images, labels) in enumerate(dataloader_val):
+            images = images.to(device)
+            labels = labels.to(device)
+
+            outputs = model(images)
+            _, preds = torch.max(outputs, 1)
+
+            for j in range(images.size()[0]):
+                images_so_far += 1
+                ax = plt.subplot(num_images//2, 2, images_so_far)
+                ax.axis('off')
+                ax.set_title(f'predicted: {class_names[preds[j]]} \n actual: {class_names[labels[j]]}')
+                plt.imshow(images.cpu().data[j])
+
+                if images_so_far == num_images:
+                    model.train(mode=was_training)
+                    return
+
+        model.train(mode=was_training)
