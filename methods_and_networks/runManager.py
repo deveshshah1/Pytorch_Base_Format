@@ -230,10 +230,10 @@ class RunManager():
         for batch in self.val_loader:
             images = batch[0].to(self.device)
             labels = batch[1].to(self.device)
-            all_labels = torch.cat([all_labels, labels], dim=0)
+            all_labels = torch.cat([all_labels, labels.to('cpu')], dim=0)
             preds = self.network(images)
             preds = preds.argmax(dim=1)
-            all_preds = torch.cat([all_preds, preds], dim=0)
+            all_preds = torch.cat([all_preds, preds.to('cpu')], dim=0)
         self.confusion_matrix = confusion_matrix(all_labels, all_preds)
 
     def save(self, filename):

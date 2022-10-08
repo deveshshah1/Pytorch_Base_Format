@@ -51,7 +51,7 @@ def helperFxn_plot_all_accuracy(run_data):
         if key in run_list:
             ax.plot(np.arange(1, len(value) + 1), value, label=key, linewidth=4)
         else:
-            ax.plot(np.arange(1, len(value) + 1), value, linestyle='dahsed', label=key)
+            ax.plot(np.arange(1, len(value) + 1), value, linestyle='dashed', label=key)
 
     ax.set_ylabel('Validation_Accuracy')
     ax.set_xlabel('Epoch')
