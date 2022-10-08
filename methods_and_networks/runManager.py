@@ -20,6 +20,7 @@ from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+import io
 from methods_and_networks.networks import *
 
 
@@ -94,6 +95,7 @@ class RunManager():
         self.epoch_start_time = None
 
         self.run_params = None
+        self.run_names = {'Run_Number': [], 'Run_Name': []}
         self.hyper_parameters = None
         self.run_count = 0
         self.run_data = []
@@ -115,12 +117,15 @@ class RunManager():
         self.network = network
         self.loader = loader
         self.val_loader = val_loader
+        self.run_names['Run_Number'].append(self.run_count)
+        self.run_names['Run_Name'].append(f'{run}')
         self.tb = SummaryWriter(comment=f'-{run}')  # note for windows OS, run may be too long of a file name
 
         images, labels = next(iter(self.loader))
         grid = torchvision.utils.make_grid(images)
         self.tb.add_image('Initial_Images', grid)
-        self.tb.add_graph(self.network, images)
+        self.tb.add_graph(self.network.to('cpu'), images)
+        self.network.to(self.device)
 
     def end_run(self):
         # Add hyper-parameters for study
@@ -135,7 +140,7 @@ class RunManager():
 
         self.tb.close()
         self.epoch_count = 0
-        # save run here if want to save
+        self.save('training_results.xlsx')
 
     def begin_epoch(self):
         self.epoch_start_time = time.time()
@@ -233,5 +238,48 @@ class RunManager():
             all_preds = torch.cat([all_preds, preds], dim=0)
         self.confusion_matrix = confusion_matrix(all_labels, all_preds)
 
+    def _plot_all_accuracy(self):
+        df = pd.DataFrame.from_dict(self.run_data, orient='columns')
+        run_val_loss_dict = {}
+        run_list, max_val_acc_list = [], []
+
+        for index, row in df.iterrows():
+            run_number = row['run']
+            if run_number in run_val_loss_dict:
+                run_val_loss_dict[run_number].append(row['val_accuracy'])
+            else:
+                run_val_loss_dict[run_number] = [row['val_accuracy']]
+
+        for key, value in run_val_loss_dict.items():
+            max_val_acc_list.append(max(value))
+            run_list.append(key)
+
+        max_val_acc_list, run_list = (list(t) for t in zip(*sorted(zip(max_val_acc_list, run_list))))
+        run_list = run_list[-5:]
+
+        fig, ax = plt.subplots()
+        for key, value in run_val_loss_dict.items():
+            if key in run_list:
+                ax.plot(np.arange(1, len(value) + 1), value, label=key, linewidth=4)
+            else:
+                ax.plot(np.arange(1, len(value) + 1), value, linestyle='dahsed', label=key)
+
+        ax.set_ylabel('Validation_Accuracy')
+        ax.set_xlabel('Epoch')
+        pos = ax.get_position()
+        ax.set_position([pos.x0, pos.y0, pos.width*0.9, pos.height])
+        ax.legend(loc='center right', bbox_to_anchor=(1.25, 0.5))
+        return fig
+
     def save(self, filename):
-        pd.DataFrame.from_dict(self.run_data, orient='columns').to_csv(f'{filename}.csv')
+        fig = self._plot_all_accuracy()
+        writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+        df = pd.DataFrame.from_dict(self.run_data, orient='columns').to_excel(writer, sheet_name='All_Data')
+        df2 = pd.DataFrame.from_dict(self.run_names, orient='columns').to_excel(writer, sheet_name='All_Plots')
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png')
+        buf.seek(0)
+        worksheet = writer.sheets['All_Plots']
+        worksheet.insert_image('C' + str(self.run_count+ 5), 'Accuracy Plots', options={'image_data': buf})
+        writer.save()
+        buf.close()

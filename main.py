@@ -51,6 +51,19 @@ def main():
         epochs=[50]
     )
 
+    # Define all hyper-parameters you wish to study
+    params = OrderedDict(
+        train_set_options=['normalized'],
+        num_workers=[2],
+        shuffle=[True],
+        network=['Network1', 'Network2'],
+        optimizer=['Adam'],
+        l2_reg=[0],
+        lr=[0.001, 0.0001],
+        batch_size=[256],
+        epochs=[5]
+    )
+
     m = RunManager(device)
     for run in RunBuilder.get_runs(params):
         network = NetworkFactory.get_network(run.network)
@@ -95,7 +108,6 @@ def main():
 
             m.end_epoch()
         m.end_run()
-    m.save('training_results')
 
 
 if __name__ == "__main__":
