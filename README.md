@@ -21,6 +21,7 @@ This repo is still in development. We hope to include the following functions mo
 - Custom Dataloaders / datasets
 - Decaying Learning Rate
 - Save best model weights during training
+- Generate PR curve for binary classificaiton problems 
 
 ## Refernces
 [1] https://deeplizard.com/ 

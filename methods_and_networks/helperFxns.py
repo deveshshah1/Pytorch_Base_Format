@@ -13,6 +13,7 @@ implementation of these methods can be found.
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import math
 
 
 def helperFxn_plot_all_accuracy(run_data):
@@ -56,6 +57,8 @@ def helperFxn_plot_all_accuracy(run_data):
     ax.set_ylabel('Validation_Accuracy')
     ax.set_xlabel('Epoch')
     pos = ax.get_position()
-    ax.set_position([pos.x0, pos.y0, pos.width *0.9, pos.height])
-    ax.legend(loc='center right', bbox_to_anchor=(1.25, 0.5))
-    return fig
+    ax.set_position([pos.x0, pos.y0, pos.width * 1.1, pos.height])
+    ncols = min(math.ceil(len(max_val_acc_list) / 25.0), 4)
+    anchor_sizes = {1: 1.25, 2: 1.35, 3: 1.5, 4: 1.65}
+    lgd = ax.legend(loc='center right', bbox_to_anchor=(anchor_sizes[ncols], 0.5), ncol=ncols)
+    return fig, lgd

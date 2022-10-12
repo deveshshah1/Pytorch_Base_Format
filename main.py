@@ -95,6 +95,7 @@ def main():
 
             m.end_epoch()
         m.end_run()
+    m.save('training_results')
 
 
 if __name__ == "__main__":

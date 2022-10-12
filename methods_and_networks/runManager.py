@@ -122,8 +122,11 @@ class RunManager():
         images, labels = next(iter(self.loader))
         grid = torchvision.utils.make_grid(images)
         self.tb.add_image('Initial_Images', grid)
-        self.tb.add_graph(self.network.to('cpu'), images)
-        self.network.to(self.device)
+        # Add graph to Tensorboard consumes large amount of system memory (RAM) over many runs
+        # and accumulates. Avoid using this when possible. However, this can be useful to compare model
+        # architectures visually when working with only a few examples.
+        # self.tb.add_graph(self.network.to('cpu'), images)
+        # self.network.to(self.device)
 
     def end_run(self):
         # Add hyper-parameters for study
@@ -138,7 +141,7 @@ class RunManager():
 
         self.tb.close()
         self.epoch_count = 0
-        self.save('training_results.xlsx')
+        self.save('training_results')  # Accumulates RAM over run. Comment out if only need results at end.
 
     def begin_epoch(self):
         self.epoch_start_time = time.time()
@@ -237,12 +240,14 @@ class RunManager():
         self.confusion_matrix = confusion_matrix(all_labels, all_preds)
 
     def save(self, filename):
-        fig = helperFxn_plot_all_accuracy(self.run_data)
-        writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+        fig, lgd = helperFxn_plot_all_accuracy(self.run_data)
+        # The xlsxwriter accumulates memory as it is called after each end_run. This is a known issue with functionality
+        # https://xlsxwriter.readthedocs.io/working_with_memory.html
+        writer = pd.ExcelWriter(filename + '.xlsx', engine='xlsxwriter')
         df = pd.DataFrame.from_dict(self.run_data, orient='columns').to_excel(writer, sheet_name='All_Data')
         df2 = pd.DataFrame.from_dict(self.run_names, orient='columns').to_excel(writer, sheet_name='All_Plots')
         buf = io.BytesIO()
-        fig.savefig(buf, format='png')
+        fig.savefig(buf, format='png', bbox_extra_artists=(lgd,), bbox_inches='tight')
         buf.seek(0)
         worksheet = writer.sheets['All_Plots']
         worksheet.insert_image('C' + str(self.run_count+ 5), 'Accuracy Plots', options={'image_data': buf})
