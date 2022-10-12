@@ -28,17 +28,9 @@ class NetworkFactory():
     This can be customized to generate various options of models using different parameters
     """
     @staticmethod
-    def get_network(name):
-        if name == "Network1":
-            return Network1()
-        elif name == "Network2":
-            return Network2()
-        elif name == "Network2_DO":
-            return Network2(conv_dropout=0.2, fc_dropout=0.5)
-        elif name == "Network2withBN":
-            return Network2withBN(conv_dropout=0.2, fc_dropout=0.5)
-        else:
-            raise Exception("Invalid Network Name")
+    def get_network(name, class_names, pretrained=True, finetune_all_layers=False):
+        tl_networks = TransferLearningNetworks(name, class_names, pretrained, finetune_all_layers)
+        return tl_networks.get_model()
 
 
 class OptimizerFactory():

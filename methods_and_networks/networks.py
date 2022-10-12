@@ -2,149 +2,91 @@
 Author: Devesh Shah
 Project Title: Pytorch Base Format
 
-This file represents the various networks we will use for training. We implement several simplistic models here
-for reference. We include properties such as Dropout and Batch Norm in order to show improvements from basic models.
+This file represents the various networks we will use for training. We implement several state of the art models
+here for reference. We offer the option for using either pretrained or randomly initialized weights.
 
-For most trainings in the future you will leverage much deeper models. Consider transfer learning methods as well
-for well known model architectures.
+Different model architectures can be leveraged based on the problem we are working with.
 """
 
 
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision
 
 
-class Network1(nn.Module):
+class TransferLearningNetworks():
     """
-    Network1 is the most basic architecture with 2 conv layers and 2 fc layers
+    This class generates various predefined models from pytorch. These include Resnet18, Resnet50, Resnet101,
+    InceptionV3, VGG16, and SqueezeNet.
+
+    For each model, we change the final fc layer or the conv layer to output the number of classes we have in our
+    problem domain.
+
+    Each model can be loaded as pretrained with Imagenet weights or not. Additionally, we offer the parameter
+    to finetune all layers or not. If finetune_all_layers=True, then the model will be loaded and returned with all
+    parameters of the model having requires_grad=True. However, if finetune_all_layers=False, we set the
+    requires_grad for each model parameter to be False except for the newly added FC layer. The goal is to leverage
+    pretrained weights fully and only modify the classifer on the end of the model.
     """
-    def __init__(self):
+    def __init__(self, model_name, class_names, pretrained=True, finetune_all_layers=False):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=6, kernel_size=5)
-        self.conv2 = nn.Conv2d(in_channels=6, out_channels=12, kernel_size=5)
+        self.class_names = class_names
+        self.pretrained = pretrained
+        self.model_name = model_name
+        self.finetune_all_layers = finetune_all_layers
 
-        self.fc1 = nn.Linear(in_features=(12*5*5), out_features=120)
-        self.fc2 = nn.Linear(in_features=120, out_features=60)
-        self.out = nn.Linear(in_features=60, out_features=10)
+    def get_model(self):
+        if self.model_name == 'resnet18' or self.model_name == 'resnet50' or self.model_name == 'resnet101':
+            return self.get_resnet(self.model_name)
+        elif self.model_name == 'inceptionV3':
+            return self.get_inceptionV3()
+        elif self.model_name == 'vgg16':
+            return self.get_vgg16()
+        elif self.model_name == 'squeezenet':
+            return self.get_squeezenet()
+        else:
+            raise Exception('Invalid Network Name')
 
-    def forward(self, t):
-        t = t
+    def get_resnet(self, model_size):
+        if model_size == 'resnet18':
+            model = torchvision.models.resnet18(pretrained=self.pretrained)
+        elif model_size == 'resnet50':
+            model = torchvision.models.resnet50(pretrained=self.pretrained)
+        elif model_size == 'resnet101':
+            model = torchvision.models.resnet101(pretrained=self.pretrained)
 
-        t = self.conv1(t)
-        t = F.relu(t)
-        t = F.max_pool2d(t, kernel_size=2, stride=2)
+        if not self.finetune_all_layers:
+            for param in model.parameters():
+                param.requires_grad = False
 
-        t = self.conv2(t)
-        t = F.relu(t)
-        t = F.max_pool2d(t, kernel_size=2, stride=2)
+        num_features = model.fc.in_features
+        model.fc = nn.Linear(num_features, len(self.class_names))
+        return model
 
-        t = t.reshape(-1, 12*5*5)
-        t = self.fc1(t)
-        t = F.relu(t)
+    def get_inceptionV3(self):
+        model = torchvision.models.inception_v3(pretrained=self.pretrained)
+        if not self.finetune_all_layers:
+            for param in model.parameters():
+                param.requires_grad = False
+        num_features = model.fc.in_features
+        model.fc = nn.Linear(num_features, len(self.class_names))
+        return model
 
-        t = self.fc2(t)
-        t = F.relu(t)
+    def get_vgg16(self):
+        model = torchvision.models.vgg16(pretrained=self.pretrained)
+        if not self.finetune_all_layers:
+            for param in model.features.parameters():
+                param.requires_grad = False
+        num_features = model.classifier[6].in_features
+        model.classifier[6] = nn.Linear(num_features, len(self.class_names))
+        return model
 
-        t = self.out(t)
-
-        return t
-
-
-class Network2(nn.Module):
-    """
-    Network2 is a deeper CNN architecture. It also includes the opportunity to include dropout given the
-    correct parameters to the init function
-    """
-    def __init__(self, conv_dropout=0, fc_dropout=0):
-        super().__init__()
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=(1, 1))
-        self.conv2 = nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, padding=(1, 1))
-
-        self.conv3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=(1, 1))
-        self.conv4 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=(1, 1))
-
-        self.conv5 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=(1, 1))
-        self.conv6 = nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=(1, 1))
-
-        self.fc1 = nn.Linear(in_features=(128 * 4 * 4), out_features=256)
-        self.fc2 = nn.Linear(in_features=256, out_features=64)
-        self.out = nn.Linear(in_features=64, out_features=10)
-
-        self.conv_dropout = nn.Dropout(conv_dropout)
-        self.fc_dropout = nn.Dropout(fc_dropout)
-
-    def forward(self, t):
-        t = t
-
-        t = F.relu(self.conv1(t))
-        t = F.relu(self.conv2(t))
-        t = F.max_pool2d(t, kernel_size=2)
-        t = self.conv_dropout(t)
-
-        t = F.relu(self.conv3(t))
-        t = F.relu(self.conv4(t))
-        t = F.max_pool2d(t, kernel_size=2)
-        t = self.conv_dropout(t)
-
-        t = F.relu(self.conv5(t))
-        t = F.relu(self.conv6(t))
-        t = F.max_pool2d(t, kernel_size=2)
-        t = self.conv_dropout(t)
-
-        t = t.reshape(-1, 128*4*4)
-        t = F.relu(self.fc1(t))
-        t = self.fc_dropout(t)
-        t = F.relu(self.fc2(t))
-        t = self.fc_dropout(t)
-
-        t = self.out(t)
-
-        return t
-
-
-class Network2withBN(nn.Module):
-    """
-    Network2withBN is a similar architecture to Network2 with Batch Norm introduced. Additionally, we leverage
-    the nn.Sequential method to highlight differet ways of building networks when repeating blocks exist.
-    """
-    def __init__(self, conv_dropout=0, fc_dropout=0):
-        super().__init__()
-        self.conv_model = nn.Sequential(
-            self.conv_building_block(in_chan=3, out_chan=32, dropout=conv_dropout),
-            self.conv_building_block(in_chan=32, out_chan=64, dropout=conv_dropout),
-            self.conv_building_block(in_chan=64, out_chan=128, dropout=conv_dropout)
-        )
-
-        self.fc_model = nn.Sequential(
-            self.fc_building_block((128*4*4), 256, dropout=fc_dropout),
-            self.fc_building_block(256, 64, dropout=fc_dropout),
-            nn.Linear(in_features=64, out_features=10)
-        )
-
-    def forward(self, t):
-        t = self.conv_model(t)
-        t = t.reshape(-1, 128*4*4)
-        t = self.fc_model(t)
-
-        return t
-
-    def conv_building_block(self, in_chan, out_chan, kernel_size=3, padding=(1, 1), dropout=0):
-        block = nn.Sequential(
-            nn.Conv2d(in_channels=in_chan, out_channels=out_chan, kernel_size=kernel_size, padding=padding),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=out_chan, out_channels=out_chan, kernel_size=kernel_size, padding=padding),
-            nn.BatchNorm2d(out_chan),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-            nn.Dropout(dropout)
-        )
-        return block
-
-    def fc_building_block(self, in_feat, out_feat, dropout=0):
-        block = nn.Sequential(
-            nn.Linear(in_features=in_feat, out_features=out_feat),
-            nn.BatchNorm1d(out_feat),
-            nn.ReLU(),
-            nn.Dropout(dropout)
-        )
-        return block
+    def get_squeezenet(self):
+        model = torchvision.models.squeezenet1_1(pretrained=self.pretrained)
+        if not self.finetune_all_layers:
+            for param in model.features.parameters():
+                param.requires_grad = False
+        num_channels = model.classifier[1].in_channels
+        model.classifier[1] = nn.Conv2d(num_channels, len(self.class_names), kernel_size=(1, 1))
+        model.num_classes = len(self.class_names)
+        return model

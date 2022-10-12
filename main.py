@@ -1,6 +1,7 @@
 """
 Author: Devesh Shah
 Project Title: Pytorch Base Format
+Branch: transfer_learning
 
 This file represents the basic training function to use for a pytorch model.
 In particular, this file loads in a pre-defined network and performs hyper-parameter tuning over the network to
@@ -43,22 +44,29 @@ def main():
         train_set_options=['normalized'],
         num_workers=[2],
         shuffle=[True],
-        network=['Network1', 'Network2', 'Network2_DO', 'Network2withBN'],
+        network=['resnet18', 'resnet50', 'resnet101', 'vgg16', 'inceptionV3', 'squeezenet'],
+        pretrained=['True'],
+        finetune_all_layers=['True', 'False'],
         optimizer=['Adam', 'SGD'],
         l2_reg=[0, 0.001],
         lr=[0.001, 0.0001],
-        batch_size=[64, 256],
+        batch_size=[128],
         epochs=[50]
     )
 
     m = RunManager(device)
     for run in RunBuilder.get_runs(params):
-        network = NetworkFactory.get_network(run.network)
+        network = NetworkFactory.get_network(run.network, class_labels, run.pretrained, run.finetune_all_layers)
         network = network.to(device)
+
+        param_to_update = []
+        for param in network.parameters():
+            if param.requires_grad:
+                param_to_update.append(param)
 
         loader = torch.utils.data.DataLoader(train_set_options[run.train_set_options], batch_size=run.batch_size, num_workers=run.num_workers, shuffle=run.shuffle)
         val_loader = torch.utils.data.DataLoader(val_set_options[run.train_set_options], batch_size=run.batch_size, num_workers=run.num_workers, shuffle=False)
-        optimizer = OptimizerFactory.get_optimizer(run.optimizer, network.parameters(), lr=run.lr, weight_decay=run.l2_reg)
+        optimizer = OptimizerFactory.get_optimizer(run.optimizer, param_to_update, lr=run.lr, weight_decay=run.l2_reg)
 
         m.begin_run(run, network, loader, val_loader, list(params.keys()), class_labels)
         print(f"RUN PARAMETERS: {run}")
