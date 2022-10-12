@@ -13,10 +13,10 @@ In particular, we highlight the following methods:
 - Data-loader Transforms with augmentation for training
 - Feature Extractors using Pytorch Hooks
 - Differential Learning
+- Visualize Sample Predictions of Trained Model
 
 To Add:
 - Custom Data Loaders / Classes
-- Save graph of val accuracy of all runs on one graph at end
 """
 
 
