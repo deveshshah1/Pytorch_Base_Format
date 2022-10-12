@@ -11,8 +11,10 @@ The main branch of this repo includes a training for a simple CNN model. Each ad
 ## Repository Breakdown
 The following files are included in this project:
 1. main.py: This serves as the main controller for the network training. It includes loading the dataset, setting the hyper-parameters, and organizing the training loop over the network
-2. networks.py: This file includes the detailed architecture of each network we hope to train
-3. helperFxns.py: This file includes several classes that help us organize our program. The NetworkFactory and OptimizerFactory provide access to various network architectures and optimizers. The RunBuilder and RunManager allow us to track the progress of our training in both a dataframe and tensorboard. It organizes the steps that happen before/after each epoch/run to compare hyper-paramter tuning results.
+2. methods_and_networks/networks.py: This file includes the detailed architecture of each network we hope to train
+3. methods_and_networks/runManager.py: This file includes several classes that help us organize our program. The NetworkFactory and OptimizerFactory provide access to various network architectures and optimizers. The RunBuilder and RunManager allow us to track the progress of our training in both a dataframe and tensorboard. It organizes the steps that happen before/after each epoch/run to compare hyper-paramter tuning results.
+4. methods_and_networks/helperFxns.py: This file includes several helper functions that are implemented and used by the runManager. They are kept in this file to keep the runManager code readable and easily adaptable. 
+5. methods_and_networks/helperFxnsDictionary.py: This file is not used by the actual program. Instead it serves as a dictionary by holding potential implemenations of many different methods that may be useful (e.g. feature extraction using hooks, ...). These functions can be taken from here and moved to helperFxns.py and with minimal changes be implemented in the training loop as desired. 
 
 ## TODO
 This repo is still in development. We hope to include the following functions moving forward:
