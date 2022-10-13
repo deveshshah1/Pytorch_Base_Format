@@ -27,6 +27,14 @@ class TransferLearningNetworks():
     parameters of the model having requires_grad=True. However, if finetune_all_layers=False, we set the
     requires_grad for each model parameter to be False except for the newly added FC layer. The goal is to leverage
     pretrained weights fully and only modify the classifer on the end of the model.
+
+    When using torchvision < 1.12 we may have to use a different format to load in models, as seen below.
+    The preprocess for each model type can be found in the docs per each model
+    model = torchvision.models.resnet18(pretrained=True)
+    preprocess = torchvision.transforms.Compose([transforms.Resize(256),
+                                                transforms.CenterCrop(224),
+                                                transforms.ToTensor(),
+                                                transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
     """
     def __init__(self, model_name, class_names, pretrained=True, finetune_all_layers=False):
         super().__init__()
@@ -76,8 +84,12 @@ class TransferLearningNetworks():
         if not self.finetune_all_layers:
             for param in model.parameters():
                 param.requires_grad = False
+        # Handle the primary net
         num_features = model.fc.in_features
         model.fc = nn.Linear(num_features, len(self.class_names))
+        # Handle the auxiliary net
+        num_features = model.AuxLogits.fc.in_features
+        model.AuxLogits.fc = nn.Linear(num_features, len(self.class_names))
         return model, preprocess
 
     def get_vgg16(self):

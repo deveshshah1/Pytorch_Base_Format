@@ -78,13 +78,22 @@ def main():
                 labels = batch[1].to(device)
 
                 preds = network(images)  # pass batch
-                loss = F.cross_entropy(preds, labels)  # calculate loss
-                optimizer.zero_grad()  # zero gradient
-                loss.backward()  # calculate gradients
-                optimizer.step()  # update weights
+                if run.network == 'inceptionV3':
+                    loss = F.cross_entropy(preds[0], labels) + 0.4*F.cross_entropy(preds[1], labels)  # calculate loss
+                    optimizer.zero_grad()  # zero gradient
+                    loss.backward()  # calculate gradients
+                    optimizer.step()  # update weights
 
-                m.track_loss(loss, 'train')
-                m.track_num_correct(preds, labels, 'train')
+                    m.track_loss(loss, 'train')
+                    m.track_num_correct(preds[0], labels, 'train')
+                else:
+                    loss = F.cross_entropy(preds, labels)  # calculate loss
+                    optimizer.zero_grad()  # zero gradient
+                    loss.backward()  # calculate gradients
+                    optimizer.step()  # update weights
+
+                    m.track_loss(loss, 'train')
+                    m.track_num_correct(preds, labels, 'train')
 
             # Validation
             network.eval()
