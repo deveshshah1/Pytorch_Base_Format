@@ -49,11 +49,17 @@ class TransferLearningNetworks():
 
     def get_resnet(self, model_size):
         if model_size == 'resnet18':
-            model = torchvision.models.resnet18(pretrained=self.pretrained)
+            weights = torchvision.models.ResNet18_Weights.DEFAULT if self.pretrained else None
+            preprocess = torchvision.models.ResNet18_Weights.DEFAULT.transforms()
+            model = torchvision.models.resnet18(weights=weights)
         elif model_size == 'resnet50':
-            model = torchvision.models.resnet50(pretrained=self.pretrained)
+            weights = torchvision.models.ResNet50_Weights.DEFAULT if self.pretrained else None
+            preprocess = torchvision.models.ResNet50_Weights.DEFAULT.transforms()
+            model = torchvision.models.resnet50(weights=weights)
         elif model_size == 'resnet101':
-            model = torchvision.models.resnet101(pretrained=self.pretrained)
+            weights = torchvision.models.ResNet101_Weights.DEFAULT if self.pretrained else None
+            preprocess = torchvision.models.ResNet101_Weights.DEFAULT.transforms()
+            model = torchvision.models.resnet101(weights=weights)
 
         if not self.finetune_all_layers:
             for param in model.parameters():
@@ -61,32 +67,38 @@ class TransferLearningNetworks():
 
         num_features = model.fc.in_features
         model.fc = nn.Linear(num_features, len(self.class_names))
-        return model
+        return model, preprocess
 
     def get_inceptionV3(self):
-        model = torchvision.models.inception_v3(pretrained=self.pretrained)
+        weights = torchvision.models.Inception_V3_Weights.DEFAULT if self.pretrained else None
+        preprocess = torchvision.models.Inception_V3_Weights.DEFAULT.transforms()
+        model = torchvision.models.inception_v3(weights=weights)
         if not self.finetune_all_layers:
             for param in model.parameters():
                 param.requires_grad = False
         num_features = model.fc.in_features
         model.fc = nn.Linear(num_features, len(self.class_names))
-        return model
+        return model, preprocess
 
     def get_vgg16(self):
-        model = torchvision.models.vgg16(pretrained=self.pretrained)
+        weights = torchvision.models.VGG16_Weights.DEFAULT if self.pretrained else None
+        preprocess = torchvision.models.VGG16_Weights.DEFAULT.transforms()
+        model = torchvision.models.vgg16(weights=weights)
         if not self.finetune_all_layers:
             for param in model.features.parameters():
                 param.requires_grad = False
         num_features = model.classifier[6].in_features
         model.classifier[6] = nn.Linear(num_features, len(self.class_names))
-        return model
+        return model, preprocess
 
     def get_squeezenet(self):
-        model = torchvision.models.squeezenet1_1(pretrained=self.pretrained)
+        weights = torchvision.models.SqueezeNet1_1_Weights.DEFAULT if self.pretrained else None
+        preprocess = torchvision.models.SqueezeNet1_1_Weights.DEFAULT.transforms()
+        model = torchvision.models.squeezenet1_1(weights=weights)
         if not self.finetune_all_layers:
             for param in model.features.parameters():
                 param.requires_grad = False
         num_channels = model.classifier[1].in_channels
         model.classifier[1] = nn.Conv2d(num_channels, len(self.class_names), kernel_size=(1, 1))
         model.num_classes = len(self.class_names)
-        return model
+        return model, preprocess

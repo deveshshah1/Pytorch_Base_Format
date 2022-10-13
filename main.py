@@ -25,19 +25,10 @@ def main():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f'Using device: {device}')
 
-    # Define transforms to use when reading in image dataset
-    # If you would like to apply random augmentations (e.g. horizontal/verical flip, random crop, ...) then you
-    # must make two different t_forms. One for the training dataset, and one for the test set (without augmentations)
-    t_forms = transforms.Compose([transforms.ToTensor(),
-                                  transforms.Normalize((0.5, ), (0.5, ))])
-
-    # Read in the datasets and split into train/val/test sets
-    train_dataset = torchvision.datasets.CIFAR10(root='./data/Cifar10', train=True, transform=t_forms, download=True)
+    # Read in the datasets and generate class labels list using temporary transforms function
+    tforms = transforms.Compose([transforms.ToTensor()])
+    train_dataset = torchvision.datasets.CIFAR10(root='./data/Cifar10', train=True, transform=tforms, download=True)
     class_labels = list(train_dataset.class_to_idx.keys())
-    train_set, val_set = torch.utils.data.random_split(train_dataset, [45000, 5000])
-    test_set = torchvision.datasets.CIFAR10(root='./data/Cifar10', train=False, transform=t_forms, download=True)
-    train_set_options = {'normalized': train_set}
-    val_set_options = {'normalized': val_set}
 
     # Define all hyper-parameters you wish to study
     params = OrderedDict(
@@ -45,8 +36,8 @@ def main():
         num_workers=[2],
         shuffle=[True],
         network=['resnet18', 'resnet50', 'resnet101', 'vgg16', 'inceptionV3', 'squeezenet'],
-        pretrained=['True'],
-        finetune_all_layers=['True', 'False'],
+        pretrained=[True],
+        finetune_all_layers=[True, False],
         optimizer=['Adam', 'SGD'],
         l2_reg=[0, 0.001],
         lr=[0.001, 0.0001],
@@ -56,8 +47,15 @@ def main():
 
     m = RunManager(device)
     for run in RunBuilder.get_runs(params):
-        network = NetworkFactory.get_network(run.network, class_labels, run.pretrained, run.finetune_all_layers)
+        network, preprocess = NetworkFactory.get_network(run.network, class_labels, run.pretrained, run.finetune_all_layers)
         network = network.to(device)
+
+        # Read in the datasets and split into train/val/test sets
+        train_dataset = torchvision.datasets.CIFAR10(root='./data/Cifar10', train=True, transform=preprocess, download=True)
+        train_set, val_set = torch.utils.data.random_split(train_dataset, [45000, 5000])
+        test_set = torchvision.datasets.CIFAR10(root='./data/Cifar10', train=False, transform=preprocess, download=True)
+        train_set_options = {'normalized': train_set}
+        val_set_options = {'normalized': val_set}
 
         param_to_update = []
         for param in network.parameters():
