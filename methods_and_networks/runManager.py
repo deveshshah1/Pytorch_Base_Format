@@ -73,6 +73,24 @@ class RunBuilder():
         return runs
 
 
+class Epoch():
+    def __init__(self):
+        self.count = 0
+        self.loss = 0
+        self.val_loss = 0
+        self.num_correct = 0
+        self.val_num_correct = 0
+        self.start_time = time.time()
+
+    def reset(self):
+        self.count = 0
+        self.loss = 0
+        self.val_loss = 0
+        self.num_correct = 0
+        self.val_num_correct = 0
+        self.start_time = time.time()
+
+
 class RunManager():
     """
     The RunManager is our centralized class that helps manage and track each epoch/run in an organized
@@ -82,7 +100,7 @@ class RunManager():
     after each trial, keeping track of all parameters. All the final results are saved to a dataframe
     for further study after the training is complete
     """
-    def __init__(self, device):
+    def __init__(self, device, use_tensorboard, score_by):
         self.device = device
 
         self.epoch_count = 0
@@ -91,9 +109,10 @@ class RunManager():
         self.epoch_num_correct = 0
         self.epoch_val_num_correct = 0
         self.epoch_start_time = None
+        # self.epoch = Epoch()
 
         self.run_params = None
-        self.run_names = {'Run_Number': [], 'Run_Name': []}
+        self.run_names = {'Run_Number': [], 'Best_Performance': [], 'Run_Name': []}
         self.run_count = 0
         self.run_data = []
         self.run_start_time = None
@@ -105,6 +124,8 @@ class RunManager():
         self.confusion_matrix = None
         self.class_labels = None
         self.tb = None
+        self.use_tb = use_tensorboard
+        self.score_by_acc = score_by['Accuracy']
 
     def begin_run(self, run, network, loader, val_loader, hyparams, class_labels):
         self.run_start_time = time.time()
@@ -117,11 +138,15 @@ class RunManager():
         self.val_loader = val_loader
         self.run_names['Run_Number'].append(self.run_count)
         self.run_names['Run_Name'].append(f'{run}')
-        self.tb = SummaryWriter(comment=f'-{run}')  # note for windows OS, run may be too long of a file name
+        self.run_names['Best_Performance'].append(0)
 
         images, labels = next(iter(self.loader))
         grid = torchvision.utils.make_grid(images)
-        self.tb.add_image('Initial_Images', grid)
+
+        if self.use_tb:
+            self.tb = SummaryWriter(comment=f'-Run{self.run_count}_{run}')  # note for windows OS, run may be too long of a file name
+            self.tb.add_image('Initial_Images', grid)
+
         # Add graph to Tensorboard consumes large amount of system memory (RAM) over many runs
         # and accumulates. Avoid using this when possible. However, this can be useful to compare model
         # architectures visually when working with only a few examples.
@@ -133,13 +158,15 @@ class RunManager():
         hyper_param_dict = OrderedDict()
         for idx, hyper_param in enumerate(self.run_params):
             hyper_param_dict[self.hyper_parameters[idx]] = hyper_param
-        self.tb.add_hparams(dict(hyper_param_dict),
-                            {'train_loss': self.epoch_loss / len(self.loader.dataset),
-                             'val_loss': self.epoch_val_loss / len(self.val_loader.dataset),
-                             'train_acc': self.epoch_num_correct / len(self.loader.dataset),
-                             'val_acc': self.epoch_val_num_correct / len(self.val_loader.dataset)})
 
-        self.tb.close()
+        if self.use_tb:
+            self.tb.add_hparams(dict(hyper_param_dict),
+                                {'train_loss': self.epoch_loss / len(self.loader.dataset),
+                                 'val_loss': self.epoch_val_loss / len(self.val_loader.dataset),
+                                 'train_acc': self.epoch_num_correct / len(self.loader.dataset),
+                                 'val_acc': self.epoch_val_num_correct / len(self.val_loader.dataset)})
+            self.tb.close()
+
         self.epoch_count = 0
         self.save('training_results')  # Accumulates RAM over run. Comment out if only need results at end.
 
@@ -160,29 +187,30 @@ class RunManager():
         accuracy = self.epoch_num_correct / len(self.loader.dataset)
         val_accuracy = self.epoch_val_num_correct / len(self.val_loader.dataset)
 
-        self.tb.add_scalar('Loss', loss, self.epoch_count)
-        self.tb.add_scalar('Val_Loss', val_loss, self.epoch_count)
-        self.tb.add_scalar('Accuracy', accuracy, self.epoch_count)
-        self.tb.add_scalar('Val_Accuracy', val_accuracy, self.epoch_count)
+        if self.use_tb:
+            self.tb.add_scalar('Loss', loss, self.epoch_count)
+            self.tb.add_scalar('Val_Loss', val_loss, self.epoch_count)
+            self.tb.add_scalar('Accuracy', accuracy, self.epoch_count)
+            self.tb.add_scalar('Val_Accuracy', val_accuracy, self.epoch_count)
 
-        # Add histogram to Tensorboard consumes large amount of system memory (RAM) over many runs
-        # and accumulates. Avoid using this when possible. However, this can be useful to make sure
-        # training of weights is progressing properly.
-        # for name, param in self.network.named_parameters():
-        #     self.tb.add_histogram(name, param, self.epoch_count)
-        #     self.tb.add_histogram(f'{name}.grad', param.grad, self.epoch_count)
+            # Add histogram to Tensorboard consumes large amount of system memory (RAM) over many runs
+            # and accumulates. Avoid using this when possible. However, this can be useful to make sure
+            # training of weights is progressing properly.
+            # for name, param in self.network.named_parameters():
+            #     self.tb.add_histogram(name, param, self.epoch_count)
+            #     self.tb.add_histogram(f'{name}.grad', param.grad, self.epoch_count)
 
-        # For every 5 epochs, print a confusion matrix
-        if self.epoch_count % 5 == 0:
-            self._get_confusion_mat()
-            figure = plt.figure(figsize=(8, 8))
-            sns.heatmap(self.confusion_matrix / np.sum(self.confusion_matrix), annot=True, fmt='.1%', cmap='Blues',
-                        cbar=True, xticklabels=self.class_labels, yticklabels=self.class_labels)
-            plt.ylabel('True Label')
-            plt.xlabel('Predicted Label' + f'\n\nValidation Accuracy={val_accuracy}')
-            plt.title('Confusion Matrix Validation Dataset')
-            plt.tight_layout()
-            self.tb.add_figure("Confusion Matrix", figure, self.epoch_count)
+            # For every 5 epochs, print a confusion matrix
+            if self.epoch_count % 5 == 0:
+                self._get_confusion_mat()
+                figure = plt.figure(figsize=(8, 8))
+                sns.heatmap(self.confusion_matrix / np.sum(self.confusion_matrix), annot=True, fmt='.1%', cmap='Blues',
+                            cbar=True, xticklabels=self.class_labels, yticklabels=self.class_labels)
+                plt.ylabel('True Label')
+                plt.xlabel('Predicted Label' + f'\n\nValidation Accuracy={val_accuracy}')
+                plt.title('Confusion Matrix Validation Dataset')
+                plt.tight_layout()
+                self.tb.add_figure("Confusion Matrix", figure, self.epoch_count)
 
         results = OrderedDict()
         results['run'] = self.run_count
@@ -240,12 +268,23 @@ class RunManager():
         self.confusion_matrix = confusion_matrix(all_labels, all_preds)
 
     def save(self, filename):
-        fig, lgd = helperFxn_plot_all_accuracy(self.run_data)
+        fig, lgd, self.run_names = helperFxn_plot_topK(self.run_data, self.run_names, self.score_by_acc)
         # The xlsxwriter accumulates memory as it is called after each end_run. This is a known issue with functionality
         # https://xlsxwriter.readthedocs.io/working_with_memory.html
         writer = pd.ExcelWriter(filename + '.xlsx', engine='xlsxwriter')
         df = pd.DataFrame.from_dict(self.run_data, orient='columns').to_excel(writer, sheet_name='All_Data')
-        df2 = pd.DataFrame.from_dict(self.run_names, orient='columns').to_excel(writer, sheet_name='All_Plots')
+        run_names_ordered = pd.DataFrame.from_dict(self.run_names, orient='columns').copy(deep=True)
+        if self.score_by_acc:
+            run_names_ordered = run_names_ordered.sort_values(by=['Best_Performance'], ascending=False)
+        else:
+            run_names_ordered = run_names_ordered.sort_values(by=['Best_Performance'], ascending=True)
+        df_temp = pd.DataFrame().reindex_like(run_names_ordered).dropna().iloc[:, 0:2]
+        run_names_toprint = pd.concat([run_names_ordered.reset_index(drop=True), df_temp.reset_index(drop=True),
+                                       pd.DataFrame.from_dict(self.run_names, orient='columns').reset_index(drop=True)],
+                                      axis=1, ignore_index=True)
+        run_names_toprint.columns = ['Run_Number', 'Best_Performance', 'Run_Name', '-', '-', 'Run_Number',
+                                     'Best_Performance', 'Run_Name']
+        df2 = run_names_toprint.to_excel(writer, sheet_name='All_Plots')
         buf = io.BytesIO()
         fig.savefig(buf, format='png', bbox_extra_artists=(lgd,), bbox_inches='tight')
         buf.seek(0)

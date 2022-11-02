@@ -14,9 +14,7 @@ In particular, we highlight the following methods:
 - Feature Extractors using Pytorch Hooks
 - Differential Learning
 - Visualize Sample Predictions of Trained Model
-
-To Add:
-- Custom Data Loaders / Classes
+- Custom Data Loader
 """
 
 
@@ -25,6 +23,68 @@ import torchvision
 import torchvision.transforms as transforms
 from PIL import Image
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import math
+import json
+import os
+import sklearn.preprocessing as skl
+
+
+class CustomDataLoader(torch.utils.data.Dataset):
+    """
+    This is an example of a custom dataloader using Torch Datasets. They key components include the __len__ and the
+    __getitem__ functions. These are required to over-ride the dataloaders. The exact format will depend on how the
+    images and csv data is organized. Different forms of standardization/normalization are implemented here.
+    It may also be required to create custom transformations based on the image format. See example below:
+    https://pytorch.org/tutorials/beginner/data_loading_tutorial.html
+    """
+    def __init__(self, root_dir, csv_dir, train_test_names, targets, transform=None, train=True, scaling=None):
+        self.root_dir = root_dir
+        self.transform = transform
+        self.targets = targets
+        self.df_orig = pd.read_csv(csv_dir)
+        self.df = self.df_orig.copy(deep=True)
+
+        train_test_split = json.load(open(train_test_names))
+        self.img_names = train_test_split['full_train'] if train else train_test_names['full_test']
+
+        self.scalars = {}
+        if scaling == 'Normalization':
+            for target in targets:
+                self.scalars[target] = skl.MinMaxScaler().fit(pd.DataFrame(self.df_orig[target]))
+                self.df[target] = pd.DataFrame(self.scalars[target].transform(pd.DataFrame(self.df_orig[target])))
+        elif scaling == 'Standardization':
+            for target in targets:
+                self.scalars[target] = skl.StandardScaler().fit(pd.DataFrame(self.df_orig[target]))
+                self.df[target] = pd.DataFrame(self.scalars[target].transform(pd.DataFrame(self.df_orig[target])))
+
+    def __len__(self):
+        return len(self.img_names)
+
+    def __getitem__(self, item):
+        if torch.is_tensor(item):
+            item = item.tolist()
+
+        img_name = self.img_names[item]
+        img_df = self.df.loc[self.df['name'] == img_name]
+        img_path = os.path.join(self.root_dir, img_name + '.png')
+        image = Image.open(img_path)
+        if self.transform:
+            image = self.transform(image)
+        labels = []
+        for target in self.targets:
+            labels.append(img_df.iloc[0][target])
+        labels = torch.Tensor(labels)
+        return image, labels
+
+    def inverse_scaling(self, item, target):
+        """
+        If you perform scaling (normalization/standardization), you will need to undo that transform in order
+        to obtain the true prediction that outputted from a model when it is being used.
+        This is one example of undo-ing that operation
+        """
+        return self.scalars[target].inverse_transform(item)
 
 
 def get_transform_with_aug():

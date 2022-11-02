@@ -21,6 +21,10 @@ from methods_and_networks.runManager import *
 
 
 def main():
+    # Set initial set up parameters
+    use_tensorboard = False  # results will still be saved in excel if tb is not used
+    score_by = {'Accuracy': False, 'Loss': True}  # maximize accuracy (True/False) or minimize Loss (False/True)
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f'Using device: {device}')
 
@@ -39,6 +43,8 @@ def main():
     val_set_options = {'normalized': val_set}
 
     # Define all hyper-parameters you wish to study
+    # To optimize GPU efficiency, you can alter the num_workers and batch size (e.g. smaller networks typically prefer
+    # smaller batch sizes and greater num_workers)
     params = OrderedDict(
         train_set_options=['normalized'],
         num_workers=[2],
@@ -51,8 +57,21 @@ def main():
         epochs=[50]
     )
 
-    m = RunManager(device)
+    params = OrderedDict(
+        train_set_options=['normalized'],
+        num_workers=[2],
+        shuffle=[True],
+        network=['Network1'],
+        optimizer=['Adam'],
+        l2_reg=[0],
+        lr=[0.001],
+        batch_size=[64, 64, 64],
+        epochs=[2]
+    )
+
+    m = RunManager(device, use_tensorboard, score_by)
     for run in RunBuilder.get_runs(params):
+        torch.manual_seed(1)
         network = NetworkFactory.get_network(run.network)
         network = network.to(device)
 
