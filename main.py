@@ -57,18 +57,6 @@ def main():
         epochs=[50]
     )
 
-    params = OrderedDict(
-        train_set_options=['normalized'],
-        num_workers=[2],
-        shuffle=[True],
-        network=['Network1'],
-        optimizer=['Adam'],
-        l2_reg=[0],
-        lr=[0.001],
-        batch_size=[64, 64, 64],
-        epochs=[2]
-    )
-
     m = RunManager(device, use_tensorboard, score_by)
     for run in RunBuilder.get_runs(params):
         network = NetworkFactory.get_network(run.network)
