@@ -42,8 +42,7 @@ def main():
         num_workers=[2],
         shuffle=[True],
         network=['resnet18', 'resnet50', 'resnet101', 'vgg16', 'inceptionV3', 'squeezenet'],
-        pretrained=[True],
-        finetune_all_layers=[True, False],
+        weights_type=['R', 'FA', 'FL', 'D'],
         optimizer=['Adam', 'SGD'],
         l2_reg=[0, 0.001],
         lr=[0.001, 0.0001],
@@ -51,21 +50,9 @@ def main():
         epochs=[50]
     )
 
-    params = OrderedDict(
-        train_set_options=['normalized'],
-        num_workers=[2],
-        shuffle=[True],
-        network=['Network1'],
-        optimizer=['Adam'],
-        l2_reg=[0],
-        lr=[0.001],
-        batch_size=[64, 64, 64],
-        epochs=[2]
-    )
-
     m = RunManager(device, use_tensorboard, score_by)
     for run in RunBuilder.get_runs(params):
-        network, preprocess = NetworkFactory.get_network(run.network, class_labels, run.pretrained, run.finetune_all_layers)
+        network, preprocess, param_to_update = NetworkFactory.get_network(run.network, class_labels, run.weights_type)
         network = network.to(device)
 
         # Read in the datasets and split into train/val/test sets
@@ -74,11 +61,6 @@ def main():
         test_set = torchvision.datasets.CIFAR10(root='./data/Cifar10', train=False, transform=preprocess, download=True)
         train_set_options = {'normalized': train_set}
         val_set_options = {'normalized': val_set}
-
-        param_to_update = []
-        for param in network.parameters():
-            if param.requires_grad:
-                param_to_update.append(param)
 
         loader = torch.utils.data.DataLoader(train_set_options[run.train_set_options], batch_size=run.batch_size, num_workers=run.num_workers, shuffle=run.shuffle)
         val_loader = torch.utils.data.DataLoader(val_set_options[run.train_set_options], batch_size=run.batch_size, num_workers=run.num_workers, shuffle=False)

@@ -28,8 +28,8 @@ class NetworkFactory():
     This can be customized to generate various options of models using different parameters
     """
     @staticmethod
-    def get_network(name, class_names, pretrained=True, finetune_all_layers=False):
-        tl_networks = TransferLearningNetworks(name, class_names, pretrained, finetune_all_layers)
+    def get_network(name, class_names, weights_type='FA'):
+        tl_networks = TransferLearningNetworks(name, class_names, weights_type)
         return tl_networks.get_model()
 
 

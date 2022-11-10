@@ -22,6 +22,12 @@ class TransferLearningNetworks():
     For each model, we change the final fc layer or the conv layer to output the number of classes we have in our
     problem domain.
 
+    The weights initialization and training can happen in 4 various formats:
+    'R': Random weight initialization. Train all layers using standard learning rate
+    'FA': Finetune all layers starting from a pretrained model
+    'FL': Finetune last layer only using a pretrained model. Used as a set feature extractor
+    'D': Differntiable learning. Use pretrained model and finetune all layers as per set diff learning rates
+
     Each model can be loaded as pretrained with Imagenet weights or not. Additionally, we offer the parameter
     to finetune all layers or not. If finetune_all_layers=True, then the model will be loaded and returned with all
     parameters of the model having requires_grad=True. However, if finetune_all_layers=False, we set the
@@ -36,12 +42,27 @@ class TransferLearningNetworks():
                                                 transforms.ToTensor(),
                                                 transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
     """
-    def __init__(self, model_name, class_names, pretrained=True, finetune_all_layers=False):
+    def __init__(self, model_name, class_names, weights_type='R'):
         super().__init__()
         self.class_names = class_names
-        self.pretrained = pretrained
         self.model_name = model_name
-        self.finetune_all_layers = finetune_all_layers
+        self.diff_learning = True
+        if weights_type == 'R': # Random weight initialization. Train all layers using standard learning rate
+            self.pretrained = False
+            self.finetune_all_layers = True
+            self.diff_learning = False
+        elif weights_type == 'FA': # Finetune all layers using a pretrained model
+            self.pretrained = True
+            self.finetune_all_layers = True
+            self.diff_learning = False
+        elif weights_type == 'FL': # Finetune last layer only using pretrained model
+            self.pretrained = True
+            self.finetune_all_layers = False
+            self.diff_learning = False
+        elif weights_type == 'D': # Differentiable Learning. Use pretrained model. Finetune all
+            self.pretrained = True
+            self.finetune_all_layers = True
+            self.diff_learning = True
 
     def get_model(self):
         if self.model_name == 'resnet18' or self.model_name == 'resnet50' or self.model_name == 'resnet101':
@@ -75,7 +96,20 @@ class TransferLearningNetworks():
 
         num_features = model.fc.in_features
         model.fc = nn.Linear(num_features, len(self.class_names))
-        return model, preprocess
+
+        param_to_update = []
+        if self.diff_learning:
+            param_to_update.append({"params": model.layer1.parameters(), "lr": 0.00001})
+            param_to_update.append({"params": model.layer2.parameters(), "lr": 0.0001})
+            param_to_update.append({"params": model.layer3.parameters(), "lr": 0.001})
+            param_to_update.append({"params": model.layer4.parameters(), "lr": 0.001})
+            param_to_update.append({"params": model.fc.parameters(), "lr": 0.001})
+        else:
+            for param in model.parameters():
+                if param.requires_grad:
+                    param_to_update.append(param)
+
+        return model, preprocess, param_to_update
 
     def get_inceptionV3(self):
         weights = torchvision.models.Inception_V3_Weights.DEFAULT if self.pretrained else None
@@ -90,7 +124,28 @@ class TransferLearningNetworks():
         # Handle the auxiliary net
         num_features = model.AuxLogits.fc.in_features
         model.AuxLogits.fc = nn.Linear(num_features, len(self.class_names))
-        return model, preprocess
+
+        param_to_update = []
+        if self.diff_learning:
+            param_to_update.append({"params": model.Mixed_5b.parameters(), "lr": 0.00001})
+            param_to_update.append({"params": model.Mixed_5c.parameters(), "lr": 0.00001})
+            param_to_update.append({"params": model.Mixed_5d.parameters(), "lr": 0.00001})
+            param_to_update.append({"params": model.Mixed_6a.parameters(), "lr": 0.0001})
+            param_to_update.append({"params": model.Mixed_6b.parameters(), "lr": 0.0001})
+            param_to_update.append({"params": model.Mixed_6c.parameters(), "lr": 0.001})
+            param_to_update.append({"params": model.Mixed_6d.parameters(), "lr": 0.001})
+            param_to_update.append({"params": model.Mixed_6e.parameters(), "lr": 0.001})
+            param_to_update.append({"params": model.AuxLogits.parameters(), "lr": 0.001})
+            param_to_update.append({"params": model.Mixed_7a.parameters(), "lr": 0.001})
+            param_to_update.append({"params": model.Mixed_7b.parameters(), "lr": 0.001})
+            param_to_update.append({"params": model.Mixed_7c.parameters(), "lr": 0.001})
+            param_to_update.append({"params": model.fc.parameters(), "lr": 0.001})
+        else:
+            for param in model.parameters():
+                if param.requires_grad:
+                    param_to_update.append(param)
+
+        return model, preprocess, param_to_update
 
     def get_vgg16(self):
         weights = torchvision.models.VGG16_Weights.DEFAULT if self.pretrained else None
@@ -101,7 +156,25 @@ class TransferLearningNetworks():
                 param.requires_grad = False
         num_features = model.classifier[6].in_features
         model.classifier[6] = nn.Linear(num_features, len(self.class_names))
-        return model, preprocess
+
+        param_to_update = []
+        if self.diff_learning:
+            param_to_update.append({"params": [model.features[10].parameters(),
+                                               model.features[12].parameters(),
+                                               model.features[14].parameters()], "lr": 0.00001})
+            param_to_update.append({"params": [model.features[17].parameters(),
+                                               model.features[19].parameters(),
+                                               model.features[21].parameters()], "lr": 0.0001})
+            param_to_update.append({"params": [model.features[24].parameters(),
+                                               model.features[26].parameters(),
+                                               model.features[28].parameters()], "lr": 0.001})
+            param_to_update.append({"params": model.classifier.parameters(), "lr": 0.001})
+        else:
+            for param in model.parameters():
+                if param.requires_grad:
+                    param_to_update.append(param)
+
+        return model, preprocess, param_to_update
 
     def get_squeezenet(self):
         weights = torchvision.models.SqueezeNet1_1_Weights.DEFAULT if self.pretrained else None
@@ -113,4 +186,19 @@ class TransferLearningNetworks():
         num_channels = model.classifier[1].in_channels
         model.classifier[1] = nn.Conv2d(num_channels, len(self.class_names), kernel_size=(1, 1))
         model.num_classes = len(self.class_names)
-        return model, preprocess
+
+        param_to_update = []
+        if self.diff_learning:
+            param_to_update.append({"params": [model.features[6].parameters(),
+                                               model.features[7].parameters()], "lr": 0.00001})
+            param_to_update.append({"params": [model.features[9].parameters(),
+                                               model.features[10].parameters()], "lr": 0.0001})
+            param_to_update.append({"params": [model.features[11].parameters(),
+                                               model.features[12].parameters()], "lr": 0.001})
+            param_to_update.append({"params": model.classifier.parameters(), "lr": 0.001})
+        else:
+            for param in model.parameters():
+                if param.requires_grad:
+                    param_to_update.append(param)
+
+        return model, preprocess, param_to_update
