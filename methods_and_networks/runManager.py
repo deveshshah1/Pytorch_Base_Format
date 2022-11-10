@@ -66,29 +66,11 @@ class RunBuilder():
     """
     @staticmethod
     def get_runs(params):
-        Run = namedtuple('Run', params.keys())
+        RunParams = namedtuple('Run', params.keys())
         runs = []
         for v in product(*params.values()):
-            runs.append(Run(*v))
+            runs.append(RunParams(*v))
         return runs
-
-
-class Epoch():
-    def __init__(self):
-        self.count = 0
-        self.loss = 0
-        self.val_loss = 0
-        self.num_correct = 0
-        self.val_num_correct = 0
-        self.start_time = time.time()
-
-    def reset(self):
-        self.count = 0
-        self.loss = 0
-        self.val_loss = 0
-        self.num_correct = 0
-        self.val_num_correct = 0
-        self.start_time = time.time()
 
 
 class RunManager():
@@ -102,20 +84,8 @@ class RunManager():
     """
     def __init__(self, device, use_tensorboard, score_by):
         self.device = device
-
-        self.epoch_count = 0
-        self.epoch_loss = 0
-        self.epoch_val_loss = 0
-        self.epoch_num_correct = 0
-        self.epoch_val_num_correct = 0
-        self.epoch_start_time = None
-        # self.epoch = Epoch()
-
-        self.run_params = None
-        self.run_names = {'Run_Number': [], 'Best_Performance': [], 'Run_Name': []}
-        self.run_count = 0
-        self.run_data = []
-        self.run_start_time = None
+        self.epoch = Epoch()
+        self.run = Run()
 
         self.network = None
         self.hyper_parameters = None
@@ -128,80 +98,70 @@ class RunManager():
         self.score_by_acc = score_by['Accuracy']
 
     def begin_run(self, run, network, loader, val_loader, hyparams, class_labels):
-        self.run_start_time = time.time()
-        self.run_params = run
+        self.run.new_run(run)
         self.hyper_parameters = hyparams
         self.class_labels = class_labels
-        self.run_count += 1
         self.network = network
         self.loader = loader
         self.val_loader = val_loader
-        self.run_names['Run_Number'].append(self.run_count)
-        self.run_names['Run_Name'].append(f'{run}')
-        self.run_names['Best_Performance'].append(0)
 
         images, labels = next(iter(self.loader))
         grid = torchvision.utils.make_grid(images)
 
         if self.use_tb:
-            self.tb = SummaryWriter(comment=f'-Run{self.run_count}_{run}')  # note for windows OS, run may be too long of a file name
+            self.tb = SummaryWriter(comment=f'-Run{self.run.count}_{run}')  # for windows OS - too long of a file name
             self.tb.add_image('Initial_Images', grid)
 
-        # Add graph to Tensorboard consumes large amount of system memory (RAM) over many runs
-        # and accumulates. Avoid using this when possible. However, this can be useful to compare model
-        # architectures visually when working with only a few examples.
-        # self.tb.add_graph(self.network.to('cpu'), images)
-        # self.network.to(self.device)
+            # Add graph to Tensorboard consumes large amount of system memory (RAM) over many runs
+            # and accumulates. Avoid using this when possible. However, this can be useful to compare model
+            # architectures visually when working with only a few examples.
+            # self.tb.add_graph(self.network.to('cpu'), images)
+            # self.network.to(self.device)
 
     def end_run(self):
         # Add hyper-parameters for study
         hyper_param_dict = OrderedDict()
-        for idx, hyper_param in enumerate(self.run_params):
+        for idx, hyper_param in enumerate(self.run.params):
             hyper_param_dict[self.hyper_parameters[idx]] = hyper_param
 
         if self.use_tb:
             self.tb.add_hparams(dict(hyper_param_dict),
-                                {'train_loss': self.epoch_loss / len(self.loader.dataset),
-                                 'val_loss': self.epoch_val_loss / len(self.val_loader.dataset),
-                                 'train_acc': self.epoch_num_correct / len(self.loader.dataset),
-                                 'val_acc': self.epoch_val_num_correct / len(self.val_loader.dataset)})
+                                {'train_loss': self.epoch.loss / len(self.loader.dataset),
+                                 'val_loss': self.epoch.val_loss / len(self.val_loader.dataset),
+                                 'train_acc': self.epoch.num_correct / len(self.loader.dataset),
+                                 'val_acc': self.epoch.val_num_correct / len(self.val_loader.dataset)})
             self.tb.close()
 
-        self.epoch_count = 0
+        self.epoch.reset()
         self.save('training_results')  # Accumulates RAM over run. Comment out if only need results at end.
 
     def begin_epoch(self):
-        self.epoch_start_time = time.time()
-        self.epoch_count += 1
-        self.epoch_loss = 0
-        self.epoch_val_loss = 0
-        self.epoch_num_correct = 0
-        self.epoch_val_num_correct = 0
+        self.epoch.new_epoch()
 
     def end_epoch(self):
-        epoch_duration = time.time() - self.epoch_start_time
-        run_duration = time.time() - self.run_start_time
+        epoch_duration = time.time() - self.epoch.start_time
+        run_duration = time.time() - self.run.start_time
 
-        loss = self.epoch_loss / len(self.loader.dataset)
-        val_loss = self.epoch_val_loss / len(self.val_loader.dataset)
-        accuracy = self.epoch_num_correct / len(self.loader.dataset)
-        val_accuracy = self.epoch_val_num_correct / len(self.val_loader.dataset)
+        loss = self.epoch.loss / len(self.loader.dataset)
+        val_loss = self.epoch.val_loss / len(self.val_loader.dataset)
+        accuracy = self.epoch.num_correct / len(self.loader.dataset)
+        val_accuracy = self.epoch.val_num_correct / len(self.val_loader.dataset)
 
         if self.use_tb:
-            self.tb.add_scalar('Loss', loss, self.epoch_count)
-            self.tb.add_scalar('Val_Loss', val_loss, self.epoch_count)
-            self.tb.add_scalar('Accuracy', accuracy, self.epoch_count)
-            self.tb.add_scalar('Val_Accuracy', val_accuracy, self.epoch_count)
+            self.tb.add_scalar('Loss', loss, self.epoch.count)
+            self.tb.add_scalar('Val_Loss', val_loss, self.epoch.count)
+            self.tb.add_scalar('Accuracy', accuracy, self.epoch.count)
+            self.tb.add_scalar('Val_Accuracy', val_accuracy, self.epoch.count)
 
             # Add histogram to Tensorboard consumes large amount of system memory (RAM) over many runs
             # and accumulates. Avoid using this when possible. However, this can be useful to make sure
             # training of weights is progressing properly.
             # for name, param in self.network.named_parameters():
-            #     self.tb.add_histogram(name, param, self.epoch_count)
-            #     self.tb.add_histogram(f'{name}.grad', param.grad, self.epoch_count)
+            #     self.tb.add_histogram(name, param, self.epoch.count)
+            #     self.tb.add_histogram(f'{name}.grad', param.grad, self.epoch.count)
 
             # For every 5 epochs, print a confusion matrix
-            if self.epoch_count % 5 == 0:
+            if self.epoch.count % 5 == 0:
                 self._get_confusion_mat()
                 figure = plt.figure(figsize=(8, 8))
                 sns.heatmap(self.confusion_matrix / np.sum(self.confusion_matrix), annot=True, fmt='.1%', cmap='Blues',
@@ -210,11 +170,11 @@ class RunManager():
                 plt.xlabel('Predicted Label' + f'\n\nValidation Accuracy={val_accuracy}')
                 plt.title('Confusion Matrix Validation Dataset')
                 plt.tight_layout()
-                self.tb.add_figure("Confusion Matrix", figure, self.epoch_count)
+                self.tb.add_figure("Confusion Matrix", figure, self.epoch.count)
 
         results = OrderedDict()
-        results['run'] = self.run_count
-        results['epoch'] = self.epoch_count
+        results['run'] = self.run.count
+        results['epoch'] = self.epoch.count
         results['loss'] = loss
         results['accuracy'] = accuracy
         results['val_loss'] = val_loss
@@ -222,30 +182,30 @@ class RunManager():
         results['epoch_duration'] = epoch_duration
         results['run_duration'] = run_duration
 
-        for k, v in self.run_params._asdict().items():
+        for k, v in self.run.params._asdict().items():
             results[k] = v
 
-        self.run_data.append(results)
+        self.run.data.append(results)
 
         # Uncomment if would like to display df with all epoch results after each epoch
         # Best used when working with a jupyter notebook
-        # df = pd.DataFrame.from_dict(self.run_data, orient='columns')
+        # df = pd.DataFrame.from_dict(self.run.data, orient='columns')
         # clear_output(wait=True)
         # display(df)
 
     def track_loss(self, loss, data_type):
         if data_type == 'train':
-            self.epoch_loss += loss.item() * self.loader.batch_size
+            self.epoch.loss += loss.item() * self.loader.batch_size
         elif data_type == 'val':
-            self.epoch_val_loss += loss.item() * self.val_loader.batch_size
+            self.epoch.val_loss += loss.item() * self.val_loader.batch_size
         else:
             raise Exception("Invalid Loss Tracker Type")
 
     def track_num_correct(self, preds, labels, data_type):
         if data_type == 'train':
-            self.epoch_num_correct += self._get_num_correct(preds, labels)
+            self.epoch.num_correct += self._get_num_correct(preds, labels)
         elif data_type == 'val':
-            self.epoch_val_num_correct += self._get_num_correct(preds, labels)
+            self.epoch.val_num_correct += self._get_num_correct(preds, labels)
         else:
             raise Exception("Invalid Accuracy Tracker Type")
 
@@ -268,27 +228,24 @@ class RunManager():
         self.confusion_matrix = confusion_matrix(all_labels, all_preds)
 
     def save(self, filename):
-        fig, lgd, self.run_names = helperFxn_plot_topK(self.run_data, self.run_names, self.score_by_acc)
+        fig, lgd, self.run_names = helperFxn_plot_topK(self.run.data, self.run.names, self.score_by_acc)
         # The xlsxwriter accumulates memory as it is called after each end_run. This is a known issue with functionality
         # https://xlsxwriter.readthedocs.io/working_with_memory.html
         writer = pd.ExcelWriter(filename + '.xlsx', engine='xlsxwriter')
-        df = pd.DataFrame.from_dict(self.run_data, orient='columns').to_excel(writer, sheet_name='All_Data')
-        run_names_ordered = pd.DataFrame.from_dict(self.run_names, orient='columns').copy(deep=True)
+        df = pd.DataFrame.from_dict(self.run.data, orient='columns').to_excel(writer, sheet_name='All_Data')
+        run_names_ordered = pd.DataFrame.from_dict(self.run.names, orient='columns').copy(deep=True)
         if self.score_by_acc:
             run_names_ordered = run_names_ordered.sort_values(by=['Best_Performance'], ascending=False)
         else:
             run_names_ordered = run_names_ordered.sort_values(by=['Best_Performance'], ascending=True)
         df_temp = pd.DataFrame().reindex_like(run_names_ordered).dropna().iloc[:, 0:2]
-        run_names_toprint = pd.concat([run_names_ordered.reset_index(drop=True), df_temp.reset_index(drop=True),
-                                       pd.DataFrame.from_dict(self.run_names, orient='columns').reset_index(drop=True)],
-                                      axis=1, ignore_index=True)
-        run_names_toprint.columns = ['Run_Number', 'Best_Performance', 'Run_Name', '-', '-', 'Run_Number',
-                                     'Best_Performance', 'Run_Name']
+        run_names_toprint = pd.concat([run_names_ordered.reset_index(drop=True), df_temp.reset_index(drop=True), pd.DataFrame.from_dict(self.run.names, orient='columns').reset_index(drop=True)], axis=1, ignore_index=True)
+        run_names_toprint.columns = ['Run_Number', 'Best_Performance', 'Run_Name', '-', '-', 'Run_Number', 'Best_Performance', 'Run_Name']
         df2 = run_names_toprint.to_excel(writer, sheet_name='All_Plots')
         buf = io.BytesIO()
         fig.savefig(buf, format='png', bbox_extra_artists=(lgd,), bbox_inches='tight')
         buf.seek(0)
         worksheet = writer.sheets['All_Plots']
-        worksheet.insert_image('C' + str(self.run_count+ 5), 'Accuracy Plots', options={'image_data': buf})
+        worksheet.insert_image('C' + str(self.run.count + 5), 'Accuracy Plots', options={'image_data': buf})
         writer.save()
         buf.close()

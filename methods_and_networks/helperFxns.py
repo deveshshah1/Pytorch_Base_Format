@@ -14,6 +14,45 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import math
+import time
+
+
+class Epoch():
+    def __init__(self):
+        self.count = 0
+        self.loss = 0
+        self.val_loss = 0
+        self.num_correct = 0
+        self.val_num_correct = 0
+        self.start_time = time.time()
+
+    def reset(self):
+        self.count = 0
+
+    def new_epoch(self):
+        self.loss = 0
+        self.val_loss = 0
+        self.num_correct = 0
+        self.val_num_correct = 0
+        self.start_time = time.time()
+        self.count += 1
+
+
+class Run():
+    def __init__(self):
+        self.params = None
+        self.names = {'Run_Number': [], 'Best_Performance': [], 'Run_Name': []}
+        self.count = 0
+        self.data = []
+        self.start_time = None
+
+    def new_run(self, run):
+        self.start_time = time.time()
+        self.params = run
+        self.count += 1
+        self.names['Run_Number'].append(self.count)
+        self.names['Run_Name'].append(f'{run}')
+        self.names['Best_Performance'].append(0)
 
 
 def helperFxn_plot_topK(run_data, run_names, score_by_acc, k=5):
@@ -29,6 +68,7 @@ def helperFxn_plot_topK(run_data, run_names, score_by_acc, k=5):
     variable self.run_data
     :param run_names: A list of run names along with run number. Comes from RunManager variable self.run_names
     :param score_by_acc: If True, find max validation accuracies. If False, find min validation losses
+    :param k: top k items are highlighted on the figure
     :return: A figure with the validation accuracy of every run plotted on one graph. Top K val accuracy runs are
     specially highlighted. Also return run_names with best performance filled out
     """

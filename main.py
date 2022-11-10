@@ -71,7 +71,6 @@ def main():
 
     m = RunManager(device, use_tensorboard, score_by)
     for run in RunBuilder.get_runs(params):
-        torch.manual_seed(1)
         network = NetworkFactory.get_network(run.network)
         network = network.to(device)
 

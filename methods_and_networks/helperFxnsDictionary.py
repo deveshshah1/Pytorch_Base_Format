@@ -15,10 +15,12 @@ In particular, we highlight the following methods:
 - Differential Learning
 - Visualize Sample Predictions of Trained Model
 - Custom Data Loader
+- Custom Loss Function
 """
 
 
 import torch
+import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
 from PIL import Image
@@ -85,6 +87,38 @@ class CustomDataLoader(torch.utils.data.Dataset):
         This is one example of undo-ing that operation
         """
         return self.scalars[target].inverse_transform(item)
+
+
+class CustomLossFxn(torch.nn.module):
+    """
+    Custom loss functions can be written as class inheritance from nn.module
+    This is a basic example of a custom loss function where we compare the MSE of feature vectors for
+    two image sets (possible use case: an autoencoder).
+
+    Some additional support for using NNs inside custom loss functions:
+    https://discuss.pytorch.org/t/using-neural-network-in-loss-function/71296
+    https://github.com/https-deeplearning-ai/GANs-Public/blob/master/C3W2_Pix2PixHD_(Optional).ipynb
+    https://discuss.pytorch.org/t/forward-hook-activations-for-loss-computation/142903
+    """
+    def __init__(self, device):
+        super(CustomLossFxn, self).__init__()
+        self.resnet = torchvision.models.resnet18(pretrained=True)
+        modules = list(self.resnet.children())[:-1]
+        self.resnet = torch.nn.Sequential(*modules)
+        self.resnet.eval()
+        self.resnet.to(device)
+        for param in self.resnet.parameters():
+            param.requires_grad = False
+
+    def forward(self, real, pred):
+        real_features = self.resnet(real).squeeze(dim=3).squeeze(dim=2)
+        pred_features = self.resnet(pred).squeeze(dim=3).squeeze(dim=2)
+        loss = 0
+        for i in range(real_features.shape[0]):
+            real_vec = real_features[i, :]
+            pred_vec = pred_features[i, :]
+            loss = loss + F.mse_loss(real_vec, pred_vec)
+        return loss
 
 
 def get_transform_with_aug():
