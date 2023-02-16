@@ -18,7 +18,7 @@ The following files are included in this project:
 
 ## TODO
 This repo is still in development. We hope to include the following functions moving forward:
-- Multiprocessing with >1 GPU
+- Multiprocessing with >1 GPU using torch.nn.parallel.DistributedDataParallel
 - Decaying Learning Rate
 - Save best model weights during training
 

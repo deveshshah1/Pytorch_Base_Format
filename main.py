@@ -60,6 +60,9 @@ def main():
     m = RunManager(device, use_tensorboard, score_by)
     for run in RunBuilder.get_runs(params):
         network = NetworkFactory.get_network(run.network)
+        if torch.cuda.device_count() > 1:
+            print(f'Using {torch.cuda.device_count()} GPUs!')
+            network = torch.nn.DataParallel(network)
         network = network.to(device)
 
         loader = torch.utils.data.DataLoader(train_set_options[run.train_set_options], batch_size=run.batch_size, num_workers=run.num_workers, shuffle=run.shuffle)
