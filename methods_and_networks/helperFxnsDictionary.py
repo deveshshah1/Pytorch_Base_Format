@@ -16,6 +16,7 @@ In particular, we highlight the following methods:
 - Visualize Sample Predictions of Trained Model
 - Custom Data Loader
 - Custom Loss Function
+- Load model state_dict from multiGPU training
 """
 
 
@@ -145,6 +146,26 @@ def get_transform_with_aug():
                                    transforms.Normalize((0.5, ), (0.5, ))])
     }
     return data_transforms
+
+
+def load_model_mutliGPU_trained():
+    """
+    When you train a model using multi-GPUs from torch.nn.dataparallel() and save the model, you may want to use
+    that same model in the future on a single GPU or a CPU. In this case, when loading the state_dict into the model
+    architecture, you will run into the issue that each layer will have a "module." in the start which will not match
+    the model architecture (unless the new model is also set under torch.nn.dataparallel().
+    In that case, you will need to remove all the "module." portions to load the state_dict and use the model.
+    :return:
+    """
+    model = torchvision.models.resnet18(pretrained=True)
+    state_dict = torch.load('path_to_file.pth')
+    from collections import OrderedDict
+    new_state_dict = OrderedDict()
+    for k, v in state_dict.items():
+        name = k[7:]  # Remove "module." from each parameter name
+        new_state_dict[name] = v
+    model.load_state_dict(new_state_dict)
+    return model
 
 
 def feature_extractor():

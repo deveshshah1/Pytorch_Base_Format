@@ -1,6 +1,7 @@
 """
 Author: Devesh Shah
 Project Title: Pytorch Base Format
+Source: https://github.com/deveshshah1/Pytorch_Base_Format
 
 This file represents the basic training function to use for a pytorch model.
 In particular, this file loads in a pre-defined network and performs hyper-parameter tuning over the network to
@@ -52,7 +53,8 @@ def main():
         network=['Network1', 'Network2', 'Network2_DO', 'Network2withBN'],
         optimizer=['Adam', 'SGD'],
         l2_reg=[0, 0.001],
-        lr=[0.001, 0.0001],
+        init_lr=[0.001, 0.0001],
+        scheduler=['None', 'Cosine'],
         batch_size=[64, 256],
         epochs=[50]
     )
@@ -67,7 +69,8 @@ def main():
 
         loader = torch.utils.data.DataLoader(train_set_options[run.train_set_options], batch_size=run.batch_size, num_workers=run.num_workers, shuffle=run.shuffle)
         val_loader = torch.utils.data.DataLoader(val_set_options[run.train_set_options], batch_size=run.batch_size, num_workers=run.num_workers, shuffle=False)
-        optimizer = OptimizerFactory.get_optimizer(run.optimizer, network.parameters(), lr=run.lr, weight_decay=run.l2_reg)
+        optimizer = OptimizerFactory.get_optimizer(run.optimizer, network.parameters(), lr=run.init_LR, weight_decay=run.l2_reg)
+        scheduler = LRSchedulerFactory.get_lr_scheduler(run.scheduler, optimizer, run.epochs)
 
         m.begin_run(run, network, loader, val_loader, list(params.keys()), class_labels)
         print(f"RUN PARAMETERS: {run}")
@@ -101,6 +104,11 @@ def main():
 
                     m.track_loss(loss, 'val')
                     m.track_num_correct(preds, labels, 'val')
+
+            # LR Scheduler
+            if run.scheduler == 'ReduceOnPlateau': scheduler.step(m.epoch.val_loss)
+            else: scheduler.step()
+            m.track_sched_lr(optimizer.param_groups[0]['lr'])
 
             m.end_epoch()
         m.end_run()
