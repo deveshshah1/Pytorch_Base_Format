@@ -69,7 +69,7 @@ def main():
 
         loader = torch.utils.data.DataLoader(train_set_options[run.train_set_options], batch_size=run.batch_size, num_workers=run.num_workers, shuffle=run.shuffle)
         val_loader = torch.utils.data.DataLoader(val_set_options[run.train_set_options], batch_size=run.batch_size, num_workers=run.num_workers, shuffle=False)
-        optimizer = OptimizerFactory.get_optimizer(run.optimizer, network.parameters(), lr=run.init_LR, weight_decay=run.l2_reg)
+        optimizer = OptimizerFactory.get_optimizer(run.optimizer, network.parameters(), lr=run.init_lr, weight_decay=run.l2_reg)
         scheduler = LRSchedulerFactory.get_lr_scheduler(run.scheduler, optimizer, run.epochs)
 
         m.begin_run(run, network, loader, val_loader, list(params.keys()), class_labels)
