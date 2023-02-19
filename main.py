@@ -2,6 +2,7 @@
 Author: Devesh Shah
 Project Title: Pytorch Base Format
 Branch: transfer_learning
+Source: https://github.com/deveshshah1/Pytorch_Base_Format
 
 This file represents the basic training function to use for a pytorch model.
 In particular, this file loads in a pre-defined network and performs hyper-parameter tuning over the network to
@@ -45,14 +46,18 @@ def main():
         weights_type=['R', 'FA', 'FL', 'D'],
         optimizer=['Adam', 'SGD'],
         l2_reg=[0, 0.001],
-        lr=[0.001, 0.0001],
-        batch_size=[128],
+        init_lr=[0.001, 0.0001],
+        scheduler=['None', 'Cosine'],
+        batch_size=[64, 256],
         epochs=[50]
     )
 
     m = RunManager(device, use_tensorboard, score_by)
     for run in RunBuilder.get_runs(params):
         network, preprocess, param_to_update = NetworkFactory.get_network(run.network, class_labels, run.weights_type)
+        if torch.cuda.device_count() > 1:
+            print(f'Using {torch.cuda.device_count()} GPUs!')
+            network = torch.nn.DataParallel(network)
         network = network.to(device)
 
         # Read in the datasets and split into train/val/test sets
@@ -64,7 +69,9 @@ def main():
 
         loader = torch.utils.data.DataLoader(train_set_options[run.train_set_options], batch_size=run.batch_size, num_workers=run.num_workers, shuffle=run.shuffle)
         val_loader = torch.utils.data.DataLoader(val_set_options[run.train_set_options], batch_size=run.batch_size, num_workers=run.num_workers, shuffle=False)
-        optimizer = OptimizerFactory.get_optimizer(run.optimizer, param_to_update, lr=run.lr, weight_decay=run.l2_reg)
+
+        optimizer = OptimizerFactory.get_optimizer(run.optimizer, param_to_update, lr=run.init_lr, weight_decay=run.l2_reg)
+        scheduler = LRSchedulerFactory.get_lr_scheduler(run.scheduler, optimizer, run.epochs)
 
         m.begin_run(run, network, loader, val_loader, list(params.keys()), class_labels)
         print(f"RUN PARAMETERS: {run}")
@@ -107,6 +114,19 @@ def main():
 
                     m.track_loss(loss, 'val')
                     m.track_num_correct(preds, labels, 'val')
+
+            # LR Scheduler
+            if run.scheduler == 'ReduceOnPlateau': scheduler.step(m.epoch.val_loss)
+            else: scheduler.step()
+            m.track_sched_lr(optimizer.param_groups[0]['lr'])
+
+            # Save best model and run params for this model inside a text file
+            if m.epoch.val_loss < m.min_loss:
+                m.min_loss = m.epoch.val_loss
+                torch.save(network.state_dict(), f'trained_network.pth')
+                txt_file = open('trained_network.txt', 'w')
+                txt_file.write(f'Run Count: {m.run.count} \nNetwork Architecture: {run.network}')
+                txt_file.close()
 
             m.end_epoch()
         m.end_run()

@@ -22,7 +22,7 @@ from methods_and_networks.networks import *
 from methods_and_networks.helperFxns import *
 
 
-class NetworkFactory():
+class NetworkFactory:
     """
     The NetworkFactory loads in various types of predefined models from the networks.py file.
     This can be customized to generate various options of models using different parameters
@@ -33,7 +33,7 @@ class NetworkFactory():
         return tl_networks.get_model()
 
 
-class OptimizerFactory():
+class OptimizerFactory:
     """
     The OptimizerFactory loads in various types of optimizers that are provided by torch.optim.
     Many parameters are available for the user to easily modify the hyper-parameters of the optimizer
@@ -51,7 +51,34 @@ class OptimizerFactory():
         return optimizer
 
 
-class RunBuilder():
+class LRSchedulerFactory:
+    """
+    The LR Scheduler Factory loads in various types of schedulers that are provided by torch.optim. We have currently
+    only defined 4 different options: None (use constant LR), CosineAnnealingLR, CosineAnnealingWarmRestarts, and
+    ReduceLROnPlateau. There are plenty of other options given by torch.optim not defined here.
+
+    There exists plenty of documentation on the different methods:
+    https://towardsdatascience.com/a-visual-guide-to-learning-rate-schedulers-in-pytorch-24bbb262c863
+    """
+    @staticmethod
+    def get_lr_scheduler(name, optimizer, epochs, eta_min=0.00001, t_max=None, t_0=None, t_mult=None):
+        if name == "None":
+            const_lambda = lambda epoch: 1 ** epoch
+            scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=const_lambda)
+        elif name == "Cosine":
+            if t_max is None: scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=eta_min)
+            else: scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=t_max, eta_min=eta_min)
+        elif name == "CosineWithRestarts":
+            if t_0 is None or t_mult is None: scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=max(int(epochs/4), 1), T_mult=1, eta_min=eta_min)
+            else: scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=t_0, T_mult=t_mult, eta_min=eta_min)
+        elif name == "ReduceOnPlateau":
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
+        else:
+            raise Exception("Invalid LR Scheduler Type Specified")
+        return scheduler
+
+
+class RunBuilder:
     """
     The RunBuilder uses the product method to find all possible combinations of hyper-parameters we
     hope to run in the model
@@ -65,7 +92,7 @@ class RunBuilder():
         return runs
 
 
-class RunManager():
+class RunManager:
     """
     The RunManager is our centralized class that helps manage and track each epoch/run in an organized
     fashion. This has been adapated from https://deeplizard.com/
@@ -88,6 +115,7 @@ class RunManager():
         self.tb = None
         self.use_tb = use_tensorboard
         self.score_by_acc = score_by['Accuracy']
+        self.min_loss = float('inf')
 
     def begin_run(self, run, network, loader, val_loader, hyparams, class_labels):
         self.run.new_run(run)
@@ -173,6 +201,7 @@ class RunManager():
         results['val_accuracy'] = val_accuracy
         results['epoch_duration'] = epoch_duration
         results['run_duration'] = run_duration
+        results['learning_rate'] = self.epoch.sched_lr
 
         for k, v in self.run.params._asdict().items():
             results[k] = v
@@ -200,6 +229,9 @@ class RunManager():
             self.epoch.val_num_correct += self._get_num_correct(preds, labels)
         else:
             raise Exception("Invalid Accuracy Tracker Type")
+
+    def track_sched_lr(self, lr):
+        self.epoch.sched_lr = lr
 
     @torch.no_grad()
     def _get_num_correct(self, preds, labels):

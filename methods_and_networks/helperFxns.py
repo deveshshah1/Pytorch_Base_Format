@@ -25,6 +25,7 @@ class Epoch():
         self.num_correct = 0
         self.val_num_correct = 0
         self.start_time = time.time()
+        self.sched_lr = 0
 
     def reset(self):
         self.count = 0
