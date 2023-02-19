@@ -30,7 +30,7 @@ def main():
     print(f'Using device: {device}')
 
     # Define transforms to use when reading in image dataset
-    # If you would like to apply random augmentations (e.g. horizontal/verical flip, random crop, ...) then you
+    # If you would like to apply random augmentations (e.g. horizontal/vertical flip, random crop, ...) then you
     # must make two different t_forms. One for the training dataset, and one for the test set (without augmentations)
     t_forms = transforms.Compose([transforms.ToTensor(),
                                   transforms.Normalize((0.5, ), (0.5, ))])
@@ -109,6 +109,14 @@ def main():
             if run.scheduler == 'ReduceOnPlateau': scheduler.step(m.epoch.val_loss)
             else: scheduler.step()
             m.track_sched_lr(optimizer.param_groups[0]['lr'])
+
+            # Save best model and run params for this model inside a text file
+            if m.epoch.val_loss < m.min_loss:
+                m.min_loss = m.epoch.val_loss
+                torch.save(network.state_dict(), f'trained_network.pth')
+                txt_file = open('trained_network.txt', 'w')
+                txt_file.write(f'Run Count: {m.run.count} \nNetwork Architecture: {run.network}')
+                txt_file.close()
 
             m.end_epoch()
         m.end_run()

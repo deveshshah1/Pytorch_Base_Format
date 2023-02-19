@@ -123,6 +123,7 @@ class RunManager:
         self.tb = None
         self.use_tb = use_tensorboard
         self.score_by_acc = score_by['Accuracy']
+        self.min_loss = float('inf')
 
     def begin_run(self, run, network, loader, val_loader, hyparams, class_labels):
         self.run.new_run(run)
