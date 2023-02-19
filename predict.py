@@ -26,6 +26,7 @@ def main(path_to_trained_network='trained_network.pth', n=5):
     network = NetworkFactory.get_network('Network1')
     network.load_state_dict(torch.load(path_to_trained_network))
     network = network.to(device)
+    network.eval()
 
     # Read in the datasets and use the test set for this
     test_set = torchvision.datasets.CIFAR10(root='./data/Cifar10', train=False, transform=t_forms, download=True)
@@ -49,7 +50,7 @@ def main(path_to_trained_network='trained_network.pth', n=5):
         img = images[0].permute(1, 2, 0)
 
         plt.figure()
-        plt.imshow(img)
+        plt.imshow(img.cpu())
         plt.title(f'Predicted: {int(values[0]*100)}% {class_labels[indicies[0]]}\nActual: {class_labels[labels[0]]}')
         plt.show()
 
