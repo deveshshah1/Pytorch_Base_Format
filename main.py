@@ -13,8 +13,7 @@ by changing the dataloaders
 The RunManager format seen here is adapted from https://deeplizard.com/
 This format allows us to easily track hyper-parameters as the models are trained
 """
-
-
+import torch.backends.mps
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
 from tqdm import tqdm
@@ -26,7 +25,7 @@ def main():
     use_tensorboard = False  # results will still be saved in excel if tb is not used
     score_by = {'Accuracy': False, 'Loss': True}  # maximize accuracy (True/False) or minimize Loss (False/True)
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     print(f'Using device: {device}')
 
     # Define transforms to use when reading in image dataset
