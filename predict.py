@@ -6,15 +6,14 @@ This file represents the basic function we can use to run a trained pytorch mode
 In particular, this file loads in a trained network and goes reports the output of the model on a couple
 test images.
 """
-
-
+import torch.backends.mps
 import torchvision.transforms as transforms
 from methods_and_networks.runManager import *
 import matplotlib.pyplot as plt
 
 
 def main(path_to_trained_network='trained_network.pth', n=5):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     print(f'Using device: {device}')
 
     # Use the same transforms you used for your validation set during trianing. This includes things such as resize
